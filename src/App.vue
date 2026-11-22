@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { ref, onMounted, onUnmounted } from 'vue'
   import { gsap } from 'gsap'
+  import StasisBeams from './components/StasisBeams.vue'
 
   // Reference to the IDEAS element
   const ideasFall = ref<HTMLElement | null>(null)
@@ -48,7 +49,7 @@
         73% 23%,
         64% 15%
       )`,
-      
+
       fragmentOrigin: '79% 24%',
       speckScale: 0.65
     },
@@ -146,6 +147,37 @@
 
   const crackedLetterIndexes = new Set([0, 1, 4, 5, 8])
   const crumbleLetterIndexes = new Set([0, 1, 4, 5, 8])
+
+  // Letters that will generate stasis beams
+  const beamLetterIndexes = Array.from(crumbleLetterIndexes)
+
+  // reference to the SVG containing our beams
+  const stasisBeams = ref<{
+    activate: (index: number) => void
+  } | null>(null)
+
+  // Where each beam begins on the blue letter shadow
+  const beamOrigins: Record<number, {
+    left: string
+    top: string
+  }> = {
+    0: { left: '60%', top: '88%' }, // S in SIT
+    1: { left: '60%', top: '70%' }, // I in SIT
+    4: { left: '20%', top: '80%' }, // S in STILL
+    5: { left: '60%', top: '83%' }, // T in STILL
+    8: { left: '20%', top: '80%' }  // Last L in STILL
+  }
+
+  // Find where the beam connects to a broken fragment
+  const getFragmentAnchor = (index: number) => {
+    const origin =
+      crumbleConfigs[index]?.fragmentOrigin ?? '50% 50%'
+
+    const [left, top] = origin.split(' ')
+
+    return { left, top }
+  }
+
   const sitFit = ref<HTMLElement | null>(null)
 
   const brownEdgeLeft = ref<HTMLElement | null>(null)
@@ -155,7 +187,7 @@
   const sitContactBelow = ref<HTMLElement | null>(null)
 
   const dontDrop = ref<HTMLElement | null>(null)
-  
+
   // Our introduction animation timeline
   let introTimeline: gsap.core.Timeline | undefined
 
@@ -174,7 +206,7 @@
     })
   }
 
-  
+
 const calculateSitHitY = () => {
   // Read the positions of the four markers
   const left = brownEdgeLeft.value?.getBoundingClientRect()
@@ -208,7 +240,7 @@ const calculateSitHitY = () => {
   onMounted(() => {
     if (
       !ideasFall.value ||
-      !portfolioScene.value || 
+      !portfolioScene.value ||
       !sitRise.value ||
       !sitFit.value ||
       !dontDrop.value
@@ -222,7 +254,7 @@ const calculateSitHitY = () => {
     const letterElements = sitRise.value.querySelectorAll<HTMLElement>('.sit-letter')
     const crackedLetters = sitRise.value.querySelectorAll<HTMLElement>('.has-crack')
     const crumbleLetters = sitRise.value.querySelectorAll<HTMLElement>('.will-crumble')
-    const fragments = sitRise.value.querySelectorAll<HTMLElement>('.letter-fragment')
+    const fragments = sitRise.value.querySelectorAll<HTMLElement>('.fragment-motion')
     const specks = sitRise.value.querySelectorAll<HTMLElement>('.crumble-speck')
 
     gsap.set(letterElements, {
@@ -324,8 +356,8 @@ const calculateSitHitY = () => {
           duration: 0.17,
           ease: 'power2.out'
         }, 'impact+=0.20')
-    
-      const particles = 
+
+      const particles =
         // Finds all particles inside the IDEAS element
         ideasFall.value.querySelectorAll('.impact-chip')
 
@@ -355,7 +387,7 @@ const calculateSitHitY = () => {
           duration: 0.55,
           ease: 'power2.in'
         }, 'impact+=0.14')
-        
+
       introTimeline.fromTo(
         sitRise.value,
         {
@@ -365,13 +397,13 @@ const calculateSitHitY = () => {
           y: calculateSitHitY,
           duration: 0.4,
           ease: 'power4.in'
-        }, 
+        },
         'impact+=0.35'
       )
 
       introTimeline.addLabel('sitImpact')
-      
-    
+
+
       introTimeline
         .to(portfolioScene.value, {
             x:-17,
@@ -448,7 +480,7 @@ const calculateSitHitY = () => {
 
         stagger: {
           each: 0.02,
-          from: 'center'  
+          from: 'center'
         }
       }, 'sitImpact+=0.25')
 
@@ -480,13 +512,13 @@ const calculateSitHitY = () => {
 
       // a mark for when dont finishes moving
       introTimeline.addLabel('dontSettled', 'dontStart+=1.55')
-      
-      
+
+
       // Start breaking pieces off after DON'T settles
       introTimeline.addLabel('crumbleStart', 'dontSettled+=0.15')
 
       // Remove a matching section from the main letters
-      
+
       introTimeline.add(() => {
         letterElements.forEach((letterEl, letterIndex) => {
 
@@ -511,6 +543,14 @@ const calculateSitHitY = () => {
           if (fragment) {
             gsap.set(fragment, {
               clipPath: config.fragmentClip,
+            })
+          }
+
+          // Rotate the wrapper around the original pivot
+          const fragmentMotion = letterEl.querySelector<HTMLElement>('.fragment-motion')
+
+          if (fragmentMotion) {
+            gsap.set(fragmentMotion, {
               transformOrigin: config.fragmentOrigin
             })
           }
@@ -529,8 +569,8 @@ const calculateSitHitY = () => {
         opacity: 1
       }, 'crumbleStart')
 
-      
-      
+
+
       const getClearFallY = (
         fragment: HTMLElement,
         minimumEm: number
@@ -574,7 +614,7 @@ const calculateSitHitY = () => {
 
         return Math.max(minimumEm, requiredEm)
       }
-      
+
 
 
 
@@ -584,16 +624,16 @@ const calculateSitHitY = () => {
         rotation: number
       }> = {
         0: { spread: 0.2, drop: 1.4, rotation: 270 }, // S (Sit)
-        1: { spread: -0.35, drop: 1.3, rotation:  120 }, // I (sit)
-        4: { spread: -0.14, drop: 1.2, rotation: -210 }, // S (Still)
-        5: { spread: -0.25, drop: 1.4, rotation:  -370 }, // T (Still)
+        1: { spread: 0.25, drop: 0.9, rotation:  220 }, // I (sit)
+        4: { spread: -0.34, drop: 0.6, rotation: -210 }, // S (Still)
+        5: { spread: -0.10, drop: 1.4, rotation:  -370 }, // T (Still)
         8: { spread: -0.4, drop: 1.2, rotation: -270} // L
       }
 
       // Controls how dramatically gravity accelerates
       const gravityPower = 9
 
-      
+
       fragments.forEach((fragment, i) => {
 
         // Find which SIT STILL letter owns this fragment
@@ -649,16 +689,26 @@ const calculateSitHitY = () => {
             })
           }
 
-        }, `crumbleStart+=${i * 0.12}`)
+        }, `crumbleStart+=${i * 0.10}`)
+
+        // Activate this letter's liquid beam near the end of its fall
+        introTimeline!.call(
+          () => {
+            stasisBeams.value?.activate(letterIndex)
+          },
+          undefined,
+          `crumbleStart+=${i * 0.10 + .81}`
+        )
+
       })
 
-            
 
 
 
 
 
-      
+
+
       specks.forEach((speck, i) => {
         const motion = { t: 0 }
 
@@ -688,7 +738,7 @@ const calculateSitHitY = () => {
       })
 
 
-        
+
   })
 
   onUnmounted(() => {
@@ -702,7 +752,7 @@ const calculateSitHitY = () => {
 
     <!-- Navigation -->
     <header class="navbar">
-      <a href="#home">HACO</a>  
+      <a href="#home">HACO</a>
     </header>
 
     <!-- Main content -->
@@ -781,7 +831,7 @@ const calculateSitHitY = () => {
                 ></span>
 
                 <span ref="sitRise" class="sit-rise">
-                  
+
                   <span
                     v-for="(letter, index) in sitLetters"
                     :key="index"
@@ -807,9 +857,42 @@ const calculateSitHitY = () => {
                       <!-- A small duplicate of the same letter -->
                       <span
                         v-if="crumbleLetterIndexes.has(index)"
-                        class="letter-fragment"
-                        v-text="letter.char"
+                        class="fragment-motion"
+                      >
+
+                        <!-- Liquid energy surrounding the chunk -->
+                        <svg
+                          class="stasis-envelope-svg"
+                          aria-hidden="true"
+                          preserveAspectRatio="none"
+                        >
+
+                          <path class="stasis-envelope-shape"></path>
+                        </svg>
+
+                        <!-- The actual clipped piece-->
+                        <span
+                          class="letter-fragment"
+                          v-text="letter.char"
+                        ></span>
+
+                        <!-- Where the stasis beam connects -->
+                        <span
+                          class="stasis-target"
+                          :style="getFragmentAnchor(index)"
+                          aria-hidden="true"
+                        ></span>
+                      </span>
+
+
+                      <!-- Where the beam emerges from the blue shadow -->
+                      <span
+                        v-if="crumbleLetterIndexes.has(index)"
+                        class="stasis-emitter"
+                        :style="beamOrigins[index]"
+                        aria-hidden="true"
                       ></span>
+
 
                       <!-- Tiny debris from the fractured letter -->
                       <span
@@ -831,7 +914,11 @@ const calculateSitHitY = () => {
 
           </h1>
 
-
+          <StasisBeams
+            ref="stasisBeams"
+            :letters-root="sitRise"
+            :indexes="beamLetterIndexes"
+          />
 
         </section>
 
@@ -847,12 +934,12 @@ const calculateSitHitY = () => {
             <div class="mountain-placeholder" aria-hidden="true"></div>
             <h2 class="mountain-label">WHO I AM</h2>
           </div>
-          
+
         </section>
 
      </main>
 
-  </div>  
+  </div>
 </template>
 
 

@@ -14,7 +14,7 @@
 
 * {
     box-sizing: border-box;
-} 
+}
 
 
 /* body: chooses the font family we load*/
@@ -30,7 +30,7 @@ body {
     min-height: 115vh;
     background-color: var(--beige);
 
-    display: flex; 
+    display: flex;
     /**/
 
     justify-content: center;
@@ -254,7 +254,7 @@ body {
     color: currentColor;
     z-index: 3;
 
-    opacity: 0;
+    opacity: 1;
 
     clip-path: polygon(
         65% 0%,
@@ -263,6 +263,22 @@ body {
         77% 28%,
         69% 15%
     );
+}
+
+
+/* Wrapper that handles motion and the blue outline */
+.fragment-motion {
+    position: absolute;
+    inset: 0;
+
+    font: inherit;
+    line-height: inherit;
+    white-space: pre;
+
+    pointer-events: none;
+
+    opacity: 0;
+    z-index: 4;
 }
 
 
@@ -378,6 +394,20 @@ body {
     text-shadow: none;
 }
 
+/* Invisible attachment points for the liquid beams */
+.stasis-emitter,
+.stasis-target {
+  position: absolute;
+  display: block;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Align the emission point with the blue shadow */
+.stasis-emitter {
+  transform: translate(0.047em, 0.055em)
+}
 
 
 .letter-face {
@@ -539,4 +569,38 @@ body {
 
     background-color: var(--brown);
     color: var(--beige);
+}
+
+
+
+
+
+
+
+/* SVG liquid surrounding each captured fragment */
+.stasis-envelope-svg {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    overflow: visible;
+    pointer-events: none;
+
+    z-index: 1;
+
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+
+/* Solid blue, matching the main stasis beam */
+.stasis-envelope-shape {
+    fill: var(--blue);
+    stroke: none;
+}
+
+/* Show the liquid once the fragment is captured */
+.fragment-motion.stasis-caught .stasis-envelope-svg {
+    opacity: 1;
 }
