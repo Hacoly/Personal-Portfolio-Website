@@ -1,0 +1,67 @@
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 100 100"
+     preserveAspectRatio="none">
+
+  <!-- Main dark fractures -->
+  <g fill="none"
+     stroke="3e5ed8" 
+     stroke-linecap="round"
+     stroke-linejoin="miter">
+
+    <!-- Main jagged crack -->
+    <path
+      d="M14 -5 L23 19 L19 30 L36 43
+         L29 56 L45 70 L39 82 L56 105"
+      stroke-width="1.6"
+    />
+
+    <!-- Upper branch -->
+    <path
+      d="M36 43 L51 39 L58 27 L72 22"
+      stroke-width="1.1"
+    />
+
+    <!-- Lower left branch -->
+    <path
+      d="M29 56 L16 64 L11 79 L2 85"
+      stroke-width="1"
+    />
+
+    <!-- Lower right branch -->
+    <path
+      d="M45 70 L63 66 L71 78 L86 74"
+      stroke-width="1.1"
+    />
+
+    <!-- Small upper fracture -->
+    <path
+      d="M23 19 L35 15 L40 6"
+      stroke-width="0.8"
+    />
+  </g>
+
+  <!-- Light edges create subtle depth -->
+  <g fill="none"
+     stroke="#f5ebd9"
+     stroke-linecap="round"
+     opacity="0.85">
+
+    <path
+      d="M15 -5 L24 19 L20 30 L37 43
+         L30 56 L46 70 L40 82 L57 105"
+      stroke-width="0.6"
+    />
+
+    <path
+      d="M37 44 L52 40 L59 28 L73 23"
+      stroke-width="0.5"
+    />
+
+    <path
+      d="M46 71 L64 67 L72 79 L87 75"
+      stroke-width="0.45"
+    />
+  </g>
+
+</svg>

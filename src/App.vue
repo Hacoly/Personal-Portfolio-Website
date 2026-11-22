@@ -1,0 +1,858 @@
+<script setup lang="ts">
+  import { ref, onMounted, onUnmounted } from 'vue'
+  import { gsap } from 'gsap'
+
+  // Reference to the IDEAS element
+  const ideasFall = ref<HTMLElement | null>(null)
+  const portfolioScene = ref<HTMLElement | null>(null)
+  const sitRise = ref<HTMLElement | null>(null)
+  const sitLetters = [
+    { char: 'S', x: -0.5, y: -0.65 + 0.4, rotation: -8, scale: 1.8, color: '#70a279' },
+    { char: 'I', x: -0.1, y: -0.03 + 0.4, rotation: 15, scale: 1.7, color: '#a8dcb3' },
+    { char: 'T', x: 0, y: -0.5 + 0.4, rotation: -3, scale: 1.5, color: '#a7bea8' },
+
+    { char: ' ', x: 0, y: 0 + 0.4, rotation: 0, scale: 1.5, color: '#70a279' },
+
+    { char: 'S', x: 0.2, y: 0.12 + 0.4, rotation: 13, scale: 1.4, color: '#a8dcb3' },
+    { char: 'T', x: 0.2, y: -0.2 + 0.4, rotation: -7, scale: 1.2, color: '#a7bea8' },
+    { char: 'I', x: 0.2, y: 0.20 + 0.4, rotation: 11, scale: 1.1, color: '#70a279' },
+    { char: 'L', x: 0.3, y: -0.07 + 0.4, rotation: 13, scale: 1.2, color: '#a7bea8' },
+    { char: 'L', x: 0.5, y: 0.06 + 0.4, rotation: -10, scale: 1.7, color: '#70a279' },
+  ]
+
+  const crumbleConfigs: Record<number, {
+  faceClip: string
+  fragmentClip: string
+  fragmentOrigin: string
+  speckScale?: number
+  }> = {
+    // 0 = S in SIT -> TOP RIGHT chunk
+    0: {
+      faceClip: `polygon(
+        0% 0%,
+        58% 0%,
+        64% 15%,
+        73% 23%,
+        65% 34%,
+        80% 43%,
+        100% 50%,
+        100% 100%,
+        0% 100%
+      )`,
+      fragmentClip: `polygon(
+        58% 0%,
+        100% 0%,
+        100% 50%,
+        80% 43%,
+        65% 34%,
+        73% 23%,
+        64% 15%
+      )`,
+      
+      fragmentOrigin: '79% 24%',
+      speckScale: 0.65
+    },
+
+    // 1 = I in SIT -> BOTTOM RIGHT chunk
+    1: {
+      faceClip: `polygon(
+        0% 0%,
+        100% 0%,
+        100% 65%,
+        85% 73%,
+        72% 81%,
+        62% 90%,
+        53% 100%,
+        0% 100%
+      )`,
+      fragmentClip: `polygon(
+        100% 65%,
+        100% 100%,
+        53% 100%,
+        62% 90%,
+        72% 81%,
+        85% 73%
+      )`,
+      fragmentOrigin: '82% 88%',
+      speckScale: 0.5
+    },
+
+    // 4 = S in STILL -> BOTTOM LEFT chunk
+    4: {
+      faceClip: `polygon(
+        0% 0%,
+        100% 0%,
+        100% 100%,
+        40% 100%,
+        28% 92%,
+        16% 82%,
+        0% 72%
+      )`,
+      fragmentClip: `polygon(
+        0% 72%,
+        16% 82%,
+        28% 92%,
+        40% 100%,
+        0% 100%
+      )`,
+      fragmentOrigin: '18% 88%',
+      speckScale: 0.85
+    },
+
+    // 5 = T in STILL -> keep your fixed version
+    5: {
+      faceClip: `polygon(
+        0% 25%,
+        8% 19%,
+        14% 25%,
+        20% 13%,
+        30% 0%,
+        100% 0%,
+        100% 100%,
+        0% 100%
+      )`,
+      fragmentClip: `polygon(
+        0% 0%,
+        30% 0%,
+        20% 13%,
+        14% 25%,
+        8% 19%,
+        0% 25%
+      )`,
+      fragmentOrigin: '15% 14%',
+      speckScale: 0.65
+    },
+
+    // 8 = last L in STILL -> BOTTOM LEFT chunk, larger than before
+    8: {
+      faceClip: `polygon(
+        0% 0%,
+        100% 0%,
+        100% 100%,
+        44% 100%,
+        28% 90%,
+        0% 76%
+      )`,
+      fragmentClip: `polygon(
+        0% 76%,
+        28% 90%,
+        44% 100%,
+        0% 100%
+      )`,
+      fragmentOrigin: '18% 90%',
+      speckScale: 1.1
+    }
+  }
+
+  const crackedLetterIndexes = new Set([0, 1, 4, 5, 8])
+  const crumbleLetterIndexes = new Set([0, 1, 4, 5, 8])
+  const sitFit = ref<HTMLElement | null>(null)
+
+  const brownEdgeLeft = ref<HTMLElement | null>(null)
+  const brownEdgeRight = ref<HTMLElement | null>(null)
+
+  const sitContact = ref<HTMLElement | null>(null)
+  const sitContactBelow = ref<HTMLElement | null>(null)
+
+  const dontDrop = ref<HTMLElement | null>(null)
+  
+  // Our introduction animation timeline
+  let introTimeline: gsap.core.Timeline | undefined
+
+  const updateSitScale = () => {
+    if (!sitFit.value) return
+
+    const designWidth = 1870
+
+    const scale = Math.min(
+      1,
+      window.innerWidth / designWidth
+    )
+
+    gsap.set(sitFit.value, {
+      scale: scale
+    })
+  }
+
+  
+const calculateSitHitY = () => {
+  // Read the positions of the four markers
+  const left = brownEdgeLeft.value?.getBoundingClientRect()
+  const right = brownEdgeRight.value?.getBoundingClientRect()
+
+  const contact = sitContact.value?.getBoundingClientRect()
+  const below = sitContactBelow.value?.getBoundingClientRect()
+
+  if (!left || !right || !contact || !below) return 0
+
+  // Calculate the slope of the brown boundary
+  const edgeWidth = right.left - left.left
+
+  // Find how far 1px of GSAP movement travels on screen
+  const movementRate = (below.top - contact.top) / 100
+
+  if (Math.abs(edgeWidth) < 0.001 ||
+      Math.abs(movementRate) < 0.001) return 0
+
+  // Find the boundary height where SIT STILL approaches it
+  const boundaryY =
+    left.top +
+    ((contact.left - left.left) / edgeWidth) *
+    (right.top - left.top)
+
+  // Calculate how far SIT STILL must move upward
+  return (boundaryY - contact.top) / movementRate
+}
+
+
+  onMounted(() => {
+    if (
+      !ideasFall.value ||
+      !portfolioScene.value || 
+      !sitRise.value ||
+      !sitFit.value ||
+      !dontDrop.value
+    ) return
+
+    updateSitScale()
+
+    window.addEventListener('resize', updateSitScale)
+
+
+    const letterElements = sitRise.value.querySelectorAll<HTMLElement>('.sit-letter')
+    const crackedLetters = sitRise.value.querySelectorAll<HTMLElement>('.has-crack')
+    const crumbleLetters = sitRise.value.querySelectorAll<HTMLElement>('.will-crumble')
+    const fragments = sitRise.value.querySelectorAll<HTMLElement>('.letter-fragment')
+    const specks = sitRise.value.querySelectorAll<HTMLElement>('.crumble-speck')
+
+    gsap.set(letterElements, {
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scale: 1
+    })
+
+    gsap.set(fragments, {
+      opacity: 0,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      transformOrigin: '80% 25%'
+    })
+
+    gsap.set(specks, {
+      opacity: 0,
+      x: 0,
+      y: 0,
+      rotation: 0
+    })
+
+
+
+    // Creating the timeline
+    introTimeline = gsap.timeline()
+
+    // controls the making the "IDEAS" fall
+    introTimeline.fromTo(
+      ideasFall.value,
+      { y: -window.innerHeight },
+      {
+        y: 0,
+        duration: 1.1,
+        ease: 'power4.in'
+      }
+    )
+
+    introTimeline.addLabel('impact')
+
+    introTimeline
+      .to(portfolioScene.value, {
+        x:-10,
+        y: 4,
+        duration: 0.045,
+        ease: 'none'
+      }, 'impact')
+      .to(portfolioScene.value, {
+        x: 8,
+        y: -4,
+        duration: 0.05,
+        ease: 'none'
+      })
+      .to(portfolioScene.value, {
+        x:-5,
+        y: 2,
+        duration: 0.06,
+        ease: 'none'
+      })
+      .to(portfolioScene.value, {
+        x: 3,
+        y: -1,
+        duration: 0.06,
+        ease: 'none'
+      })
+      .to(portfolioScene.value, {
+        x: 0,
+        y: 0,
+        duration: 0.09,
+        ease: 'power2.out'
+      })
+
+      // Compress IDEAS on impact
+      introTimeline
+        .to(ideasFall.value, {
+          scaleY: 0.86,
+          scaleX: 1.045,
+          transformOrigin: 'center bottom',
+          duration: 0.07,
+          ease: 'power2.out'
+        }, 'impact')
+
+        // Recoil upward
+        .to(ideasFall.value, {
+          scaleY: 1.04,
+          scaleX: 0.99,
+          y: -8,
+          duration: 0.13,
+          ease: 'power2.out'
+        }, 'impact+=0.07')
+
+        // Return to original shape
+        .to(ideasFall.value, {
+          scaleY: 1,
+          scaleX: 1,
+          y: 0,
+          duration: 0.17,
+          ease: 'power2.out'
+        }, 'impact+=0.20')
+    
+      const particles = 
+        // Finds all particles inside the IDEAS element
+        ideasFall.value.querySelectorAll('.impact-chip')
+
+      introTimeline
+        // Make particles visibile at impact
+        .set(particles, {
+          opacity: 1,
+          x: 0,
+          y: 0
+        }, 'impact')
+
+        .to(particles, {
+          x: (i) => (i - 5) * 13,
+          y: (i) => -12 - (i % 3) * 10,
+          rotation: (i) => i % 2 === 0 ? -40 : 40,
+
+          duration: 0.14,
+          ease: 'power2.out'
+        }, 'impact')
+
+        .to(particles, {
+          x: (i) => (i - 5) * 24,
+          y: (i) => 100 + (i % 4) * 24,
+          rotation: (i) => i % 2 === 0 ? -130 : 130,
+          opacity: 0,
+
+          duration: 0.55,
+          ease: 'power2.in'
+        }, 'impact+=0.14')
+        
+      introTimeline.fromTo(
+        sitRise.value,
+        {
+          y: () => window.innerHeight * 0.8
+        },
+        {
+          y: calculateSitHitY,
+          duration: 0.4,
+          ease: 'power4.in'
+        }, 
+        'impact+=0.35'
+      )
+
+      introTimeline.addLabel('sitImpact')
+      
+    
+      introTimeline
+        .to(portfolioScene.value, {
+            x:-17,
+            y: 8,
+            duration: 0.045,
+            ease: 'none'
+          }, 'sitImpact')
+
+          .to(portfolioScene.value, {
+            x: 14,
+            y: -6,
+            duration: 0.05,
+            ease: 'none'
+          })
+
+          .to(portfolioScene.value, {
+            x: -8,
+            y: 3,
+            duration: 0.06,
+            ease: 'none'
+          })
+
+          .to(portfolioScene.value, {
+            x: 4,
+            y: -2,
+            duration: 0.06,
+            ease: 'none'
+          })
+
+          .to(portfolioScene.value, {
+            x: 0,
+            y: 0,
+            duration: 0.10,
+            ease: 'power2.out'
+          })
+
+      // Sit Still compresses on impact
+      introTimeline
+        .to(sitRise.value, {
+          scaleY: 0.82,
+          scaleX: 1.04,
+          transformOrigin: 'center top',
+          duration: 0.08,
+          ease: 'power2.out'
+        }, 'sitImpact')
+
+        // Recoil downward from the collision
+        .to(sitRise.value, {
+          scaleY: 1.06,
+          scaleX: 0.98,
+          y: '+=12',
+          duration: 0.12,
+          ease: 'power2.out'
+        }, 'sitImpact+=0.08')
+
+        // Return to original shape
+        .to(sitRise.value, {
+          y: 0,
+          scaleY: 1,
+          scaleX: 1,
+          duration: 0.85,
+          ease: 'power2.inOut'
+        }, 'sitImpact+=0.20')
+
+      introTimeline.to(letterElements, {
+        x: (i) => `${sitLetters[i]?.x ?? 0}em`,
+        y: (i) => `${sitLetters[i]?.y ?? 0}em`,
+
+        rotation: (i) => sitLetters[i]?.rotation ?? 0,
+        scale: (i) => sitLetters[i]?.scale ?? 1,
+
+        duration: 0.60,
+        ease: 'power2.out',
+
+        stagger: {
+          each: 0.02,
+          from: 'center'  
+        }
+      }, 'sitImpact+=0.25')
+
+      introTimeline.to(crackedLetters, {
+        '--crack-visibility': 1,
+
+        duration: 0.16,
+        ease: 'none',
+
+        stagger: {
+          each: 0.025,
+          from: 'center'
+        }
+      }, 'sitImpact+=0.02')
+
+      // This is when Dont should begin sliding
+      introTimeline.addLabel('dontStart', 'sitImpact+=0.4')
+
+      introTimeline
+        .set(dontDrop.value, {
+          autoAlpha: 1
+        }, 'dontStart')
+
+        .to(dontDrop.value, {
+          y: 0,
+          duration: 1.85,
+          ease: 'power1.inOut'
+        }, 'dontStart')
+
+      // a mark for when dont finishes moving
+      introTimeline.addLabel('dontSettled', 'dontStart+=1.55')
+      
+      
+      // Start breaking pieces off after DON'T settles
+      introTimeline.addLabel('crumbleStart', 'dontSettled+=0.15')
+
+      // Remove a matching section from the main letters
+      
+      introTimeline.add(() => {
+        letterElements.forEach((letterEl, letterIndex) => {
+
+          // Get the settings for this specific letter
+          const config = crumbleConfigs[letterIndex]
+
+          if (!config) return
+
+          // Find its fragment and small debris
+          const fragment =
+            letterEl.querySelector<HTMLElement>('.letter-fragment')
+
+          const specksInLetter =
+            letterEl.querySelectorAll<HTMLElement>('.crumble-speck')
+
+          // Remove the matching part of the original letter
+          gsap.set(letterEl, {
+            '--face-clip': config.faceClip
+          })
+
+          // Shape the detached piece
+          if (fragment) {
+            gsap.set(fragment, {
+              clipPath: config.fragmentClip,
+              transformOrigin: config.fragmentOrigin
+            })
+          }
+
+          // Customize the small debris
+          gsap.set(specksInLetter, {
+            scale: config.speckScale ?? 1
+          })
+
+        })
+      }, 'crumbleStart')
+
+
+      // Reveal the matching detached pieces
+      introTimeline.set(fragments, {
+        opacity: 1
+      }, 'crumbleStart')
+
+      
+      
+      const getClearFallY = (
+        fragment: HTMLElement,
+        minimumEm: number
+      ) => {
+        // Find the lowest edge of the letters
+        const letterBottom = Math.max(
+          ...Array.from(letterElements, letter =>
+            letter.getBoundingClientRect().bottom
+          )
+        )
+
+        const fragmentTop = fragment.getBoundingClientRect().top
+        const letter = fragment.parentElement
+
+        if (!letter) return minimumEm
+
+        // Measure how far one local em moves on screen
+        const probeA = document.createElement('span')
+        const probeB = document.createElement('span')
+
+        for (const probe of [probeA, probeB]) {
+          probe.style.cssText =
+            'position:absolute;top:0;left:0;width:0;height:0;pointer-events:none;'
+          letter.appendChild(probe)
+        }
+
+        probeB.style.transform = 'translateY(1em)'
+
+        const pixelsPerEm =
+          probeB.getBoundingClientRect().top -
+          probeA.getBoundingClientRect().top
+
+        probeA.remove()
+        probeB.remove()
+
+        if (pixelsPerEm <= 0) return minimumEm
+
+        // Give the fragment a small clear gap
+        const requiredEm =
+          (letterBottom + 20 - fragmentTop) / pixelsPerEm
+
+        return Math.max(minimumEm, requiredEm)
+      }
+      
+
+
+
+      const fragmentFalls: Record<number,  {
+        spread: number
+        drop: number
+        rotation: number
+      }> = {
+        0: { spread: 0.2, drop: 1.4, rotation: 270 }, // S (Sit)
+        1: { spread: -0.35, drop: 1.3, rotation:  120 }, // I (sit)
+        4: { spread: -0.14, drop: 1.2, rotation: -210 }, // S (Still)
+        5: { spread: -0.25, drop: 1.4, rotation:  -370 }, // T (Still)
+        8: { spread: -0.4, drop: 1.2, rotation: -270} // L
+      }
+
+      // Controls how dramatically gravity accelerates
+      const gravityPower = 9
+
+      
+      fragments.forEach((fragment, i) => {
+
+        // Find which SIT STILL letter owns this fragment
+        const parentLetter =
+          fragment.closest<HTMLElement>('.sit-letter')
+
+        const letterIndex = parentLetter
+          ? Array.from(letterElements).indexOf(parentLetter)
+          : -1
+
+        // Get the falling settings for that letter
+        const fall = fragmentFalls[letterIndex]
+
+        if (!fall) return
+
+        // Total rotation from the heading and individual letter
+        const angle =
+          (sitLetters[letterIndex]?.rotation ?? 0) - 5.6
+
+        const angleRadians = angle * Math.PI / 180
+
+        const motion = { t: 0 }
+        let clearDrop = fall.drop
+
+        introTimeline!.to(motion, {
+          t: 1,
+          duration: 1,
+          ease: 'none',
+
+          onStart: () => {
+            clearDrop = getClearFallY(fragment, fall.drop)
+          },
+
+          onUpdate: () => {
+            const t = motion.t
+
+            // Increasing downward speed
+            const y = clearDrop * Math.pow(t, gravityPower)
+
+            // Very small sideways motion
+            const outward = fall.spread * Math.pow(t, 2)
+
+            // Correct the diagonal movement caused by rotation
+            const rotationCorrection =
+              y * Math.tan(angleRadians)
+
+            const x = rotationCorrection + outward
+
+            gsap.set(fragment, {
+              x: `${x}em`,
+              y: `${y}em`,
+              rotation: fall.rotation * t
+            })
+          }
+
+        }, `crumbleStart+=${i * 0.12}`)
+      })
+
+            
+
+
+
+
+
+      
+      specks.forEach((speck, i) => {
+        const motion = { t: 0 }
+
+        const direction = i % 2 === 0 ? -1 : 1
+        const spread = direction * (0.05 + (i % 3) * 0.025)
+        const drop = 0.75 + (i % 4) * 0.18
+        const spin = direction * (25 + (i % 3) * 10)
+
+        introTimeline!.to(motion, {
+          t: 1,
+          duration: 0.8,
+          ease: 'none',
+          onUpdate: () => {
+            const t = motion.t
+
+            const x = spread * (0.15 * t + 0.85 * t * t)
+            const y = drop * t * t
+
+            gsap.set(speck, {
+              x: `${x}em`,
+              y: `${y}em`,
+              rotation: spin * t,
+              opacity: 1 - t
+            })
+          }
+        }, `crumbleStart+=${0.08 + i * 0.015}`)
+      })
+
+
+        
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('resize', updateSitScale)
+    introTimeline?.kill()
+  })
+</script>
+
+<template>
+  <div ref="portfolioScene" class="portfolio">
+
+    <!-- Navigation -->
+    <header class="navbar">
+      <a href="#home">HACO</a>  
+    </header>
+
+    <!-- Main content -->
+     <main>
+
+        <!-- Hero Section -->
+        <section id="home" class="hero">
+
+
+          <h1 class="hero-title">
+
+            <span class="ideas-stage">
+
+              <!-- Brown background-->
+              <span class="hero-top" aria-hidden="true"></span>
+
+              <span
+                ref = "brownEdgeLeft"
+                class = "brown-edge-marker brown-edge-left"
+                aria-hidden = "true"
+              ></span>
+
+              <span
+                ref = "brownEdgeRight"
+                class = "brown-edge-marker brown-edge-right"
+                aria-hidden = "true"
+              ></span>
+
+              <span class="ideas">
+
+                <span class="ideas-word">
+
+                  <span ref="ideasFall" class="ideas-fall">
+                    IDEAS <!-- span isolates specific parts of that heading -->
+
+                    <!-- Particles -->
+                    <span class="impact-dust" aria-hidden="true">
+                      <span
+                      v-for="n in 11"
+                      :key="n"
+                      class="impact-chip"
+                      :style="{ left: `${n * 8}%` }"
+                      ></span>
+                    </span>
+
+                  </span>
+                </span>
+
+
+                <span class="dont-word">
+                  <span ref="dontDrop" class="dont-drop">
+                    DON'T
+                  </span>
+                </span>
+
+
+              </span>
+
+            </span>
+
+            <span class="sit-still">
+
+              <span ref="sitFit" class="sit-fit">
+                <!-- Measured the top of SIT STILL -->
+                <span
+                  ref="sitContact"
+                  class="sit-contact"
+                  aria-hidden="true"
+                ></span>
+
+                <!-- Second point for measuring movement-->
+                <span
+                  ref="sitContactBelow"
+                  class="sit-contact sit-contact-below"
+                  aria-hidden="true"
+                ></span>
+
+                <span ref="sitRise" class="sit-rise">
+                  
+                  <span
+                    v-for="(letter, index) in sitLetters"
+                    :key="index"
+                    class="sit-letter"
+                    :class="{
+                      'has-crack': crackedLetterIndexes.has(index),
+                      'will-crumble': crumbleLetterIndexes.has(index)
+                    }"
+                    :data-char="letter.char"
+                    :style="{ color: letter.color }"
+                  >
+                    <!-- Keeps the original character width -->
+                    <span class="letter-measure" v-text="letter.char"></span>
+
+                    <template v-if="letter.char.trim()">
+
+                      <!-- Blue shadow -->
+                      <span class="letter-shadow" v-text="letter.char"></span>
+
+                      <!-- Green letter -->
+                      <span class="letter-face" v-text="letter.char"></span>
+
+                      <!-- A small duplicate of the same letter -->
+                      <span
+                        v-if="crumbleLetterIndexes.has(index)"
+                        class="letter-fragment"
+                        v-text="letter.char"
+                      ></span>
+
+                      <!-- Tiny debris from the fractured letter -->
+                      <span
+                        v-for="n in (crumbleLetterIndexes.has(index) ? 5 : 0)"
+                        :key="`speck-${n}`"
+                        class="crumble-speck"
+                        :class="`speck-${n}`"
+                        aria-hidden="true"
+                      ></span>
+
+                    </template>
+                  </span>
+
+                </span>
+
+              </span>
+
+            </span>
+
+          </h1>
+
+
+
+        </section>
+
+        <!-- About Section -->
+        <section id="about" class="landscape">
+
+
+          <div class="cliff cliff-left" aria-hidden="true"></div>
+          <div class="cliff cliff-right" aria-hidden="true"></div>
+
+
+          <div class="mountain-group">
+            <div class="mountain-placeholder" aria-hidden="true"></div>
+            <h2 class="mountain-label">WHO I AM</h2>
+          </div>
+          
+        </section>
+
+     </main>
+
+  </div>  
+</template>
+
+

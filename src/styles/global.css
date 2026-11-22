@@ -1,0 +1,542 @@
+/* :root: is establishing the color palette*/
+
+:root {
+    --brown: #342b2c;
+    --beige: #f2e7d8;
+    --yellow: #d6a038;
+    --blue: #3e5ed8;
+    --green: #70a279;
+
+    --rock:#c6bdac;
+}
+
+/* box-sizing: makes element sizing easier to predict*/
+
+* {
+    box-sizing: border-box;
+} 
+
+
+/* body: chooses the font family we load*/
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: var(--beige);
+    color: var(--brown);
+}
+
+/* .hero: makes the hero section at least as tall as the browser winder */
+.hero {
+    min-height: 115vh;
+    background-color: var(--beige);
+
+    display: flex; 
+    /**/
+
+    justify-content: center;
+    align-items: center;
+
+    position: relative;
+
+    overflow: clip;
+
+}
+
+.hero-title {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.hero-title .ideas-stage {
+    position: absolute;
+
+    top: clamp(6rem, calc(32vh - 9vw), 16rem);
+    left: 6%;
+
+    font-size: clamp(4rem, 13.7vw, 16rem);
+    line-height: 0.85;
+    font-weight: 900;
+    white-space: nowrap;
+
+    transform: rotate(-5.6deg);
+    transform-origin: top left;
+
+    --brown-edge: 0.741em;
+
+    isolation: isolate;
+}
+
+.hero-title .ideas {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.hero-top {
+    position: absolute;
+
+    top: -150vh;
+    bottom: var(--brown-edge);
+
+    left: -110vw;
+    right: -110vw;
+
+    background-color: var(--brown);
+    z-index: -1;
+}
+
+
+.brown-edge-marker {
+  position: absolute;
+  bottom: var(--brown-edge);
+
+  width: 0;
+  height: 0;
+
+  pointer-events: none;
+}
+
+.brown-edge-left {
+  left: 0;
+}
+
+.brown-edge-right {
+  left: 100%;
+}
+
+.ideas-word{
+    position: relative;
+    z-index: 2;
+
+    color: var(--beige);
+    transform: translate(0em, 0.147em);
+}
+
+.ideas-fall {
+    display: block;
+    position: relative;
+}
+
+.impact-dust {
+    position: absolute;
+    inset: 0;
+
+    pointer-events: none;
+}
+
+.impact-chip {
+    position: absolute;
+
+    top: 85%;
+
+    width: clamp(3px, 0.5vw, 7px);
+    height: clamp(4px, 0.7vw, 10px);
+
+    background-color: var(--beige);
+
+    opacity: 0;
+}
+
+.impact-chip:nth-child(3n) {
+    background-color: var(--beige);
+}
+
+
+.dont-word{
+    position: relative;
+    z-index: 1;
+
+    color: var(--brown);
+
+    margin-left: 2.5em;
+    margin-top: 0em;
+}
+
+.dont-drop {
+    display: block;
+
+    visibility: hidden;
+
+    transform: translateY(-0.95em);
+}
+
+.hero-title .sit-still {
+    position: absolute;
+
+    top: 60vh;
+    left: 11%;
+
+    font-size: 16rem;
+    transform-origin: top left;
+    line-height: 0.9;
+    font-weight: 900;
+    white-space: nowrap;
+
+    transform: rotate(-5.6deg);
+    color: var(--green);
+
+    /* text-shadow: 12px 14px 0 var(--blue); */
+}
+.sit-fit {
+    display: block;
+    position: relative;
+    transform-origin: top left;
+}
+
+.sit-contact {
+    position: absolute;
+
+    top: 0.15em;
+    left: 0.3em;
+
+    width: 0;
+    height: 0;
+
+    pointer-events: none;
+}
+
+.sit-contact-below {
+    transform: translateY(100px);
+}
+
+.sit-rise {
+    display: block;
+}
+
+
+/* Each letter starts completely intact */
+.sit-letter {
+    position: relative;
+    display: inline-block;
+
+    white-space: pre;
+    line-height: inherit;
+
+    transform-origin: center center;
+
+    isolation: isolate;
+
+    --face-clip: inset(0);
+}
+
+
+/* All letter copies use identical typography */
+.letter-shadow,
+.letter-face,
+.letter-fragment {
+    position: absolute;
+    inset: 0;
+
+    font: inherit;
+    line-height: inherit;
+    white-space: pre;
+
+    text-shadow: none;
+    pointer-events: none;
+}
+
+/* The remaining letter and its shadow share a cutout */
+.letter-shadow,
+.letter-face {
+    clip-path: var(--face-clip);
+}
+
+.letter-face {
+    color: currentColor;
+    z-index: 1;
+}
+
+/* This is an exact duplicate, cropped to a fragment */
+.letter-fragment {
+    color: currentColor;
+    z-index: 3;
+
+    opacity: 0;
+
+    clip-path: polygon(
+        65% 0%,
+        100% 0%,
+        100% 43%,
+        77% 28%,
+        69% 15%
+    );
+}
+
+
+.crumble-speck {
+    position: absolute;
+    background-color: currentColor;
+
+    opacity: 0;
+    pointer-events: none;
+    z-index: 7;
+
+    clip-path: polygon(
+        12% 0%,
+        100% 22%,
+        82% 100%,
+        0% 74%
+    );
+
+    text-shadow: none;
+}
+
+/* small pieces */
+.speck-1,
+.speck-2,
+.speck-3,
+.speck-4,
+.speck-5 {
+    width: 0.022em;
+    height: 0.022em;
+}
+
+/* vary them so they don't all look identical */
+.speck-2 {
+    width: 0.015em;
+    height: 0.018em;
+}
+
+.speck-3 {
+    width: 0.018em;
+    height: 0.014em;
+}
+
+.speck-4 {
+    width: 0.012em;
+    height: 0.016em;
+}
+
+.speck-5 {
+    width: 0.020em;
+    height: 0.012em;
+}
+
+/* place them around the damaged area */
+.speck-1 {
+    left: 72%;
+    top: 10%;
+}
+
+.speck-2 {
+    left: 80%;
+    top: 18%;
+}
+
+.speck-3 {
+    left: 88%;
+    top: 26%;
+}
+
+.speck-4 {
+    left: 77%;
+    top: 34%;
+}
+
+.speck-5 {
+    left: 92%;
+    top: 20%;
+}
+
+/* Keep the surface cracks inside the remaining letter */
+.sit-letter.has-crack::after {
+    clip-path: var(--face-clip);
+    z-index: 2;
+}
+
+
+.letter-measure {
+    display: inline-block;
+    visibility: hidden;
+
+    font: inherit;
+    line-height: inherit;
+    white-space: pre;
+}
+
+.letter-shadow,
+.letter-face {
+    position: absolute;
+    inset: 0;
+    font: inherit;
+    line-height: inherit;
+    font-weight: inherit;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: none;
+}
+
+.letter-shadow {
+    color: var(--blue);
+
+    transform: translate(0.047em, 0.055em);
+
+    z-index: 0;
+    text-shadow: none;
+}
+
+
+
+.letter-face {
+    color: currentColor;
+    z-index: 2;
+}
+
+.sit-letter.has-crack::after {
+    content: attr(data-char);
+
+    position: absolute;
+    inset: 0;
+
+    font: inherit;
+    line-height: inherit;
+    white-space: pre;
+
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+
+    /* Keep the inherited blue shadow off the overlay */
+    text-shadow: none;
+
+    /* Our custom branching fracture drawing */
+    background-image: url('../assets/crack-branches.svg');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+
+    /* Only show the drawing inside the letter */
+    -webkit-background-clip: text;
+    background-clip: text;
+
+    /* GSAP still controls when the cracks appear */
+    opacity: var(--crack-visibility, 0);
+
+    pointer-events: none;
+
+    clip-path: var(--face-clip);
+    z-index: 3;
+}
+
+.landscape {
+    position: relative;
+
+    min-height: 140vh;
+
+    background-color: var(--beige);
+
+    overflow: clip;
+}
+
+.mountain-placeholder {
+    position: absolute; /* allows to place the mountain at a specific position inside the hero*/
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    background-color: var(--rock);
+
+    clip-path: polygon(
+        50% 0%,
+        100% 100%,
+        0% 100%
+    );
+}
+
+.mountain-group {
+    position: absolute;
+
+    top: 38vh;
+    left: 50%;
+
+    width: 85%;
+    max-width: 1200px;
+
+    aspect-ratio: 1.5 / 1;
+
+    transform: translateX(-50%);
+
+    z-index: 1;
+}
+
+.cliff {
+    position: absolute;
+
+    width: clamp(140px, 22vw, 380px);
+    aspect-ratio: 1 / 1;
+
+    background-color: var(--rock);
+
+    z-index: 2;
+}
+
+.cliff-left {
+    left: -3%;
+    top: 0;
+
+    clip-path: polygon(
+        0% 0%,
+        100% 20%,
+        75% 100%,
+        0% 100%
+    );
+}
+
+.cliff-right {
+    right: -3%;
+    top: 6vh;
+
+    clip-path: polygon(
+        0% 20%,
+        100% 0%,
+        100% 100%,
+        25% 100%
+    );
+}
+
+.mountain-label {
+    position: absolute;
+
+    top: 22%;
+    left: 50%;
+
+    transform: translatex(-50%);
+
+    margin: 0;
+
+    color: var(--brown);
+    white-space: nowrap;
+
+    z-index: 2;
+}
+
+.portfolio {
+    position: relative;
+}
+
+.navbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    padding: 24px 6%;
+
+    z-index: 10;
+}
+
+.navbar a {
+    color: var(--beige);
+    text-decoration: none;
+}
+
+.about {
+    min-height: 100vh;
+    padding: 10vh 8%;
+
+    background-color: var(--brown);
+    color: var(--beige);
+}
