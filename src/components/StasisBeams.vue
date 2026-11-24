@@ -439,7 +439,7 @@ onUnmounted(() => {
           <animate
             attributeName="baseFrequency"
             values="0.025 0.032; 0.038 0.026; 0.025 0.032"
-            dur="6.1s"
+            dur="3.1s"
             repeatCount="indefinite"
           />
         </feTurbulence>
@@ -456,7 +456,7 @@ onUnmounted(() => {
           <animate
             attributeName="scale"
             values="7; 11; 8; 10; 7"
-            dur="6.1s"
+            dur="3.1s"
             repeatCount="indefinite"
           />
         </feDisplacementMap>

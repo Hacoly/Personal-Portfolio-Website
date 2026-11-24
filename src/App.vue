@@ -190,6 +190,7 @@
 
   // Our introduction animation timeline
   let introTimeline: gsap.core.Timeline | undefined
+  let cleanupRepulsion: (() => void) | undefined
 
   const updateSitScale = () => {
     if (!sitFit.value) return
@@ -278,6 +279,232 @@ const calculateSitHitY = () => {
       y: 0,
       rotation: 0
     })
+
+
+
+    type ScreenPoint = {
+      x: number
+      y: number
+    }
+
+    type RepelItem = {
+      letter: HTMLElement
+      center: ScreenPoint
+      emitter: ScreenPoint | null
+      target: ScreenPoint | null
+      x: number
+      y: number
+    }
+
+    // These values control the feeling of the interaction
+    const repelRadius = 190
+    const maxPush = 18
+    const smoothness = 0.14
+
+    // Keep the cursor far away until the mouse moves
+    const mouse = {
+      x: -10000,
+      y: -10000
+    }
+
+    let repelReady = false
+
+    const repelItems: RepelItem[] = Array.from(
+      letterElements,
+      letter => ({
+        letter,
+        center: { x: 0, y: 0 },
+        emitter: null,
+        target: null,
+        x: 0,
+        y: 0
+      })
+    )
+
+    // Find the visual center of an element
+    const getCenter = (element: Element): ScreenPoint => {
+      const rect = element.getBoundingClientRect()
+
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      }
+    }
+
+    // Measure the letters after their intro positions settle
+    const measureRepelPositions = () => {
+      if (!repelReady) return
+
+      // Temporarily remove the hover offsets for accurate measuring
+      repelItems.forEach(item => {
+        item.letter.style.translate = '0px 0px'
+      })
+
+      repelItems.forEach(item => {
+        item.center = getCenter(item.letter)
+
+        const emitter = item.letter.querySelector(
+          '.stasis-emitter'
+        )
+
+        const target = item.letter.querySelector(
+          '.stasis-target'
+        )
+
+        item.emitter = emitter ? getCenter(emitter) : null
+        item.target = target ? getCenter(target) : null
+      })
+
+      // Restore the current hover offsets
+      repelItems.forEach(item => {
+        item.letter.style.translate =
+          `${item.x}px ${item.y}px`
+      })
+    }
+
+    // Track mouse position inside the hero
+    const handleMouseMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return
+
+      const hero = sitRise.value?.closest('.hero')
+      if (!hero) return
+
+      const rect = hero.getBoundingClientRect()
+
+      const inside =
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+
+      if (inside) {
+        mouse.x = event.clientX
+        mouse.y = event.clientY
+      } else {
+        mouse.x = -10000
+        mouse.y = -10000
+      }
+    }
+
+    const clearMouse = () => {
+      mouse.x = -10000
+      mouse.y = -10000
+    }
+
+    // Find the closest point on a straight segment
+    // This also lets the mouse react near each blue beam
+    const closestBeamPoint = (
+      start: ScreenPoint,
+      end: ScreenPoint
+    ): ScreenPoint => {
+      const dx = end.x - start.x
+      const dy = end.y - start.y
+      const lengthSquared = dx * dx + dy * dy
+
+      const t = lengthSquared > 0
+        ? Math.max(0, Math.min(1,
+            ((mouse.x - start.x) * dx +
+            (mouse.y - start.y) * dy) / lengthSquared
+          ))
+        : 0
+
+      return {
+        x: start.x + dx * t,
+        y: start.y + dy * t
+      }
+    }
+
+    // Run a small repulsion update every animation frame
+    const updateRepulsion = () => {
+      if (!repelReady) return
+
+      const smoothing =
+        1 - Math.pow(1 - smoothness, gsap.ticker.deltaRatio(60))
+
+      repelItems.forEach(item => {
+        // Start with the center of the original letter
+        let nearest = item.center
+
+        let distance = Math.hypot(
+          mouse.x - nearest.x,
+          mouse.y - nearest.y
+        )
+
+        // Also respond when the cursor approaches the stasis beam
+        // or its captured fragment
+        if (item.emitter && item.target) {
+          const beamPoint = closestBeamPoint(
+            item.emitter,
+            item.target
+          )
+
+          const beamDistance = Math.hypot(
+            mouse.x - beamPoint.x,
+            mouse.y - beamPoint.y
+          )
+
+          if (beamDistance < distance) {
+            nearest = beamPoint
+            distance = beamDistance
+          }
+        }
+
+        let pushX = 0
+        let pushY = 0
+
+        if (distance < repelRadius) {
+          const strength = Math.pow(
+            1 - distance / repelRadius,
+            2
+          )
+
+          const directionX = distance > 0.01
+            ? (nearest.x - mouse.x) / distance
+            : 0
+
+          const directionY = distance > 0.01
+            ? (nearest.y - mouse.y) / distance
+            : -1
+
+          pushX = directionX * maxPush * strength
+          pushY = directionY * maxPush * strength
+        }
+
+        // Smoothly move toward the new offset
+        item.x += (pushX - item.x) * smoothing
+        item.y += (pushY - item.y) * smoothing
+
+        // Independent of GSAP's original transform
+        item.letter.style.translate =
+          `${item.x.toFixed(2)}px ${item.y.toFixed(2)}px`
+      })
+    }
+
+    // Activate listeners
+    window.addEventListener('pointermove', handleMouseMove, {
+      passive: true
+    })
+    window.addEventListener('blur', clearMouse)
+    window.addEventListener('resize', measureRepelPositions)
+    window.addEventListener('scroll', measureRepelPositions, {
+      passive: true
+    })
+
+    gsap.ticker.add(updateRepulsion)
+
+    // Remove everything when the component is destroyed
+    cleanupRepulsion = () => {
+      window.removeEventListener('pointermove', handleMouseMove)
+      window.removeEventListener('blur', clearMouse)
+      window.removeEventListener('resize', measureRepelPositions)
+      window.removeEventListener('scroll', measureRepelPositions)
+
+      gsap.ticker.remove(updateRepulsion)
+
+      repelItems.forEach(item => {
+        item.letter.style.translate = ''
+      })
+    }
 
 
 
@@ -738,13 +965,25 @@ const calculateSitHitY = () => {
       })
 
 
+      // Start mouse interaction only after the intro is complete
+      introTimeline.eventCallback('onComplete', () => {
+        repelReady = true
+        measureRepelPositions()
+      })
+
+
 
   })
+
 
   onUnmounted(() => {
     window.removeEventListener('resize', updateSitScale)
+
+    cleanupRepulsion?.()
+
     introTimeline?.kill()
   })
+
 </script>
 
 <template>
