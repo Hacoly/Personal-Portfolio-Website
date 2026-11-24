@@ -154,6 +154,8 @@
   // reference to the SVG containing our beams
   const stasisBeams = ref<{
     activate: (index: number) => void
+    setPointer: (x: number, y: number) => void
+    isNearBeam: (x: number, y: number, radius?: number) => boolean
   } | null>(null)
 
   // Where each beam begins on the blue letter shadow
@@ -258,6 +260,35 @@ const calculateSitHitY = () => {
     const fragments = sitRise.value.querySelectorAll<HTMLElement>('.fragment-motion')
     const specks = sitRise.value.querySelectorAll<HTMLElement>('.crumble-speck')
 
+    
+    const fitHeroToContent = () => {
+      const hero = sitRise.value?.closest<HTMLElement>('.hero')
+      if (!hero) return
+
+      const heroTop = hero.getBoundingClientRect().top
+
+      // Include falling pieces, blue envelopes, and beams
+      const sceneParts = hero.querySelectorAll<HTMLElement | SVGElement>(
+        '.fragment-motion, .stasis-envelope-shape, .beam-body'
+      )
+
+      let lowestPoint = heroTop
+
+      sceneParts.forEach(element => {
+        const bottom = element.getBoundingClientRect().bottom
+        lowestPoint = Math.max(lowestPoint, bottom)
+      })
+
+      // Keep at least the normal hero height
+      const minimumHeight = window.innerHeight * 1.15
+
+      // Leave 120px beneath the lowest fragment
+      hero.style.minHeight = `${Math.ceil(
+        Math.max(minimumHeight, lowestPoint - heroTop + 120)
+      )}px`
+    }
+
+    
     gsap.set(letterElements, {
       x: 0,
       y: 0,
@@ -308,6 +339,7 @@ const calculateSitHitY = () => {
     }
 
     let repelReady = false
+    let wasNearBeam = false
 
     const repelItems: RepelItem[] = Array.from(
       letterElements,
@@ -321,46 +353,89 @@ const calculateSitHitY = () => {
       })
     )
 
+    
+    // The five fragments can move independently of their letters
+    const fragmentItems = Array.from(fragments, fragment => ({
+      fragment,
+      center: { x: 0, y: 0 },
+      x: 0,
+      y: 0
+    }))
+
+    // A slightly smaller influence area than the letters
+    const fragmentRepelRadius = 115
+    const fragmentMaxPush = 24
+
+
+
     // Find the visual center of an element
+
     const getCenter = (element: Element): ScreenPoint => {
       const rect = element.getBoundingClientRect()
 
       return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
+        x: rect.left + rect.width / 2 + window.scrollX,
+        y: rect.top + rect.height / 2 + window.scrollY
       }
     }
 
+
     // Measure the letters after their intro positions settle
+    
     const measureRepelPositions = () => {
       if (!repelReady) return
 
-      // Temporarily remove the hover offsets for accurate measuring
+      // Temporarily remove the mouse offsets
       repelItems.forEach(item => {
         item.letter.style.translate = '0px 0px'
       })
 
-      repelItems.forEach(item => {
-        item.center = getCenter(item.letter)
-
-        const emitter = item.letter.querySelector(
-          '.stasis-emitter'
-        )
-
-        const target = item.letter.querySelector(
-          '.stasis-target'
-        )
-
-        item.emitter = emitter ? getCenter(emitter) : null
-        item.target = target ? getCenter(target) : null
+      fragmentItems.forEach(item => {
+        item.fragment.style.translate = '0px 0px'
       })
 
-      // Restore the current hover offsets
+      // Measure the settled letters
+      repelItems.forEach(item => {
+        item.center = getCenter(item.letter)
+      })
+
+      // Measure each actual captured liquid envelope
+      fragmentItems.forEach(item => {
+        const shape = item.fragment.querySelector<SVGPathElement>(
+          '.stasis-envelope-shape'
+        )
+
+        const rect = shape?.getBoundingClientRect()
+
+        if (rect && rect.width > 0 && rect.height > 0) {
+          item.center = {
+            x: rect.left + rect.width / 2 + window.scrollX,
+            y: rect.top + rect.height / 2 + window.scrollY
+          }
+        } else {
+          // Fallback to the beam attachment point
+          const target = item.fragment.querySelector(
+            '.stasis-target'
+          )
+
+          if (target) {
+            item.center = getCenter(target)
+          }
+        }
+      })
+
+      // Restore the current mouse offsets
       repelItems.forEach(item => {
         item.letter.style.translate =
           `${item.x}px ${item.y}px`
       })
+
+      fragmentItems.forEach(item => {
+        item.fragment.style.translate =
+          `${item.x}px ${item.y}px`
+      })
     }
+
 
     // Track mouse position inside the hero
     const handleMouseMove = (event: PointerEvent) => {
@@ -391,94 +466,123 @@ const calculateSitHitY = () => {
       mouse.y = -10000
     }
 
-    // Find the closest point on a straight segment
-    // This also lets the mouse react near each blue beam
-    const closestBeamPoint = (
-      start: ScreenPoint,
-      end: ScreenPoint
-    ): ScreenPoint => {
-      const dx = end.x - start.x
-      const dy = end.y - start.y
-      const lengthSquared = dx * dx + dy * dy
 
-      const t = lengthSquared > 0
-        ? Math.max(0, Math.min(1,
-            ((mouse.x - start.x) * dx +
-            (mouse.y - start.y) * dy) / lengthSquared
-          ))
-        : 0
-
-      return {
-        x: start.x + dx * t,
-        y: start.y + dy * t
-      }
-    }
 
     // Run a small repulsion update every animation frame
+
     const updateRepulsion = () => {
       if (!repelReady) return
 
+      const cursorPageX = mouse.x + window.scrollX
+      const cursorPageY = mouse.y + window.scrollY
+
       const smoothing =
-        1 - Math.pow(1 - smoothness, gsap.ticker.deltaRatio(60))
-
-      repelItems.forEach(item => {
-        // Start with the center of the original letter
-        let nearest = item.center
-
-        let distance = Math.hypot(
-          mouse.x - nearest.x,
-          mouse.y - nearest.y
+        1 - Math.pow(
+          1 - smoothness,
+          gsap.ticker.deltaRatio(60)
         )
 
-        // Also respond when the cursor approaches the stasis beam
-        // or its captured fragment
-        if (item.emitter && item.target) {
-          const beamPoint = closestBeamPoint(
-            item.emitter,
-            item.target
-          )
+      // Find the closest captured fragment
+      let selectedFragment:
+        (typeof fragmentItems)[number] | null = null
 
-          const beamDistance = Math.hypot(
-            mouse.x - beamPoint.x,
-            mouse.y - beamPoint.y
-          )
+      let closestDistance = Infinity
 
-          if (beamDistance < distance) {
-            nearest = beamPoint
-            distance = beamDistance
-          }
+      fragmentItems.forEach(item => {
+        const distance = Math.hypot(
+          cursorPageX - item.center.x,
+          cursorPageY - item.center.y
+        )
+
+        if (
+          distance < fragmentRepelRadius &&
+          distance < closestDistance
+        ) {
+          closestDistance = distance
+          selectedFragment = item
         }
+      })
+
+      // If we're not near a chunk, check the beam
+
+      const nearBeam = !selectedFragment &&
+        (
+          stasisBeams.value?.isNearBeam(
+            mouse.x,
+            mouse.y,
+            wasNearBeam ? 85 : 65
+          ) ?? false
+        )
+
+      wasNearBeam = nearBeam
+
+
+      // Only deform the beam when hovering the beam itself
+      stasisBeams.value?.setPointer(
+        nearBeam ? mouse.x : -10000,
+        nearBeam ? mouse.y : -10000
+      )
+
+      // LETTER REPULSION
+      repelItems.forEach(item => {
+        const dx = item.center.x - cursorPageX
+        const dy = item.center.y - cursorPageY
+        const distance = Math.hypot(dx, dy)
 
         let pushX = 0
         let pushY = 0
 
-        if (distance < repelRadius) {
-          const strength = Math.pow(
-            1 - distance / repelRadius,
-            2
-          )
+        // Don't move letters while hovering a chunk or beam
+        if (
+          !selectedFragment &&
+          !nearBeam &&
+          distance < repelRadius
+        ) {
+          const strength =
+            (1 - distance / repelRadius) ** 2
 
-          const directionX = distance > 0.01
-            ? (nearest.x - mouse.x) / distance
-            : 0
+          pushX = (distance > 0.01 ? dx / distance : 0)
+            * maxPush * strength
 
-          const directionY = distance > 0.01
-            ? (nearest.y - mouse.y) / distance
-            : -1
-
-          pushX = directionX * maxPush * strength
-          pushY = directionY * maxPush * strength
+          pushY = (distance > 0.01 ? dy / distance : -1)
+            * maxPush * strength
         }
 
-        // Smoothly move toward the new offset
         item.x += (pushX - item.x) * smoothing
         item.y += (pushY - item.y) * smoothing
 
-        // Independent of GSAP's original transform
         item.letter.style.translate =
           `${item.x.toFixed(2)}px ${item.y.toFixed(2)}px`
       })
+
+      // FRAGMENT REPULSION
+      fragmentItems.forEach(item => {
+        let pushX = 0
+        let pushY = 0
+
+        if (selectedFragment === item) {
+          const dx = item.center.x - cursorPageX
+          const dy = item.center.y - cursorPageY
+          const distance = Math.hypot(dx, dy)
+
+          const strength =
+            Math.max(0, 1 - distance / fragmentRepelRadius) ** 2
+
+          pushX = (distance > 0.01 ? dx / distance : 0)
+            * fragmentMaxPush * strength
+
+          pushY = (distance > 0.01 ? dy / distance : -1)
+            * fragmentMaxPush * strength
+        }
+
+        item.x += (pushX - item.x) * smoothing
+        item.y += (pushY - item.y) * smoothing
+
+        item.fragment.style.translate =
+          `${item.x.toFixed(2)}px ${item.y.toFixed(2)}px`
+      })
     }
+
 
     // Activate listeners
     window.addEventListener('pointermove', handleMouseMove, {
@@ -486,9 +590,7 @@ const calculateSitHitY = () => {
     })
     window.addEventListener('blur', clearMouse)
     window.addEventListener('resize', measureRepelPositions)
-    window.addEventListener('scroll', measureRepelPositions, {
-      passive: true
-    })
+
 
     gsap.ticker.add(updateRepulsion)
 
@@ -497,12 +599,16 @@ const calculateSitHitY = () => {
       window.removeEventListener('pointermove', handleMouseMove)
       window.removeEventListener('blur', clearMouse)
       window.removeEventListener('resize', measureRepelPositions)
-      window.removeEventListener('scroll', measureRepelPositions)
+      window.removeEventListener('resize', handleHeroResize)
 
       gsap.ticker.remove(updateRepulsion)
 
       repelItems.forEach(item => {
         item.letter.style.translate = ''
+      })
+      
+      fragmentItems.forEach(item => {
+        item.fragment.style.translate = ''
       })
     }
 
@@ -968,10 +1074,18 @@ const calculateSitHitY = () => {
       // Start mouse interaction only after the intro is complete
       introTimeline.eventCallback('onComplete', () => {
         repelReady = true
+
+        fitHeroToContent()
         measureRepelPositions()
       })
 
+      const handleHeroResize = () => {
+        requestAnimationFrame(() => {
+          if (repelReady) fitHeroToContent()
+        })
+      }
 
+      window.addEventListener('resize', handleHeroResize)
 
   })
 
@@ -980,6 +1094,7 @@ const calculateSitHitY = () => {
     window.removeEventListener('resize', updateSitScale)
 
     cleanupRepulsion?.()
+    window.removeEventListener('resize', handleHeroResize)
 
     introTimeline?.kill()
   })

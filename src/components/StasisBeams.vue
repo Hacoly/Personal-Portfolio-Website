@@ -22,6 +22,42 @@ const layers = new Map<number, {
 
 const tweens: gsap.core.Tween[] = []
 
+// tracking
+
+const beamMouse = { x: -10000, y: -10000 }
+
+// Original centerlines, before mouse deformation
+const beamCenterlines = new Map<number, Point[]>()
+
+const setPointer = (x: number, y: number) => {
+  beamMouse.x = x
+  beamMouse.y = y
+}
+
+// Check whether the mouse is close to the middle of a beam
+const isNearBeam = (mouseX: number, mouseY: number, radius = 65) => {
+  const matrix = svg.value?.getScreenCTM()
+  if (!matrix) return false
+
+  for (const points of beamCenterlines.values()) {
+    for (let i = 4; i < points.length - 4; i += 2) {
+      const point = points[i]!
+      const screen = new DOMPoint(
+        point.x, point.y
+      ).matrixTransform(matrix)
+
+      if (Math.hypot(
+        screen.x - mouseX,
+        screen.y - mouseY
+      ) < radius) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
 // Called by App.vue when a fragment begins being caught
 
 const activate = (index: number) => {
@@ -47,7 +83,7 @@ const activate = (index: number) => {
 }
 
 
-defineExpose({ activate })
+defineExpose({ activate, setPointer, isNearBeam })
 
 // Calculate a point on a cubic Bézier curve
 const curvePoint = (
@@ -69,13 +105,16 @@ const liquidShape = (
   start: Point,
   end: Point,
   time: number,
-  index: number
+  index: number,
+  cursor: Point
 ) => {
   const dx = end.x - start.x
   const dy = end.y - start.y
   const length = Math.hypot(dx, dy)
 
-  if (length < 1) return ''
+  if (length < 1) {
+    return { path: '', centerline: [] as Point[] }
+  }
 
   const nx = -dy / length
   const ny = dx / length
@@ -95,10 +134,44 @@ const liquidShape = (
 
   const left: Point[] = []
   const right: Point[] = []
+  const centerline: Point[] = []
 
   for (let i = 0; i <= 32; i++) {
     const t = i / 32
     const point = curvePoint(start, p1, p2, end, t)
+
+
+    // Keep the original path for mouse hit detection
+    centerline.push(point)
+
+    // How far is the cursor from this particular point?
+    const distance = Math.hypot(
+      point.x - cursor.x,
+      point.y - cursor.y
+    )
+
+    // Mouse influence fades with distance
+    const influence = Math.max(0, 1 - distance / 110)
+
+    // Lock the starting and ending points in place
+    const endpointLock = Math.sin(Math.PI * t) ** 2
+
+    // Push only the nearby part of the liquid
+    const push = 25 * influence ** 2 * endpointLock
+
+    const awayX = distance > 0.01
+      ? (point.x - cursor.x) / distance
+      : 0
+
+    const awayY = distance > 0.01
+      ? (point.y - cursor.y) / distance
+      : -1
+
+    const movedPoint = {
+      x: point.x + awayX * push,
+      y: point.y + awayY * push
+    }
+
 
     // Estimate the direction along the curve
     const before = curvePoint(
@@ -142,15 +215,17 @@ const liquidShape = (
 
     const radius = widthCore * ripple
 
+
     left.push({
-      x: point.x + sideX * radius,
-      y: point.y + sideY * radius
+      x: movedPoint.x + sideX * radius,
+      y: movedPoint.y + sideY * radius
     })
 
     right.push({
-      x: point.x - sideX * radius,
-      y: point.y - sideY * radius
+      x: movedPoint.x - sideX * radius,
+      y: movedPoint.y - sideY * radius
     })
+  
   }
 
   const coords = (p: Point) => `${p.x} ${p.y}`
@@ -166,13 +241,15 @@ const liquidShape = (
     y: start.y - dy / length * 10
   }
 
-  return `
+  const path = `
     M ${left.map(coords).join(' L ')}
     Q ${coords(endCap)} ${coords(right[32]!)}
     L ${right.slice(0, 32).reverse().map(coords).join(' L ')}
     Q ${coords(startCap)} ${coords(left[0]!)}
     Z
   `
+
+  return { path, centerline }
 }
 
 
@@ -292,6 +369,14 @@ const updateBeams = () => {
   if (!matrix) return
 
   const inverse = matrix.inverse()
+
+
+  const cursor = new DOMPoint(
+    beamMouse.x,
+    beamMouse.y
+  ).matrixTransform(inverse)
+
+
   const letters =
     props.lettersRoot.querySelectorAll<HTMLElement>('.sit-letter')
 
@@ -328,15 +413,20 @@ const updateBeams = () => {
       y: start.y + (destination.y - start.y) * state.amount
     }
 
-    const shape = liquidShape(
+
+    const liquid = liquidShape(
       start,
       end,
       gsap.ticker.time,
-      index
+      index,
+      cursor
     )
 
-    layer.body.setAttribute('d', shape)
-    layer.glow.setAttribute('d', shape)
+    layer.body.setAttribute('d', liquid.path)
+    layer.glow.setAttribute('d', liquid.path)
+
+    beamCenterlines.set(index, liquid.centerline)
+
 
 
     // Find the moving fragment and its new SVG envelope

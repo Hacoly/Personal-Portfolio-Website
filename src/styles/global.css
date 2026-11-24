@@ -27,7 +27,7 @@ body {
 
 /* .hero: makes the hero section at least as tall as the browser winder */
 .hero {
-    min-height: 115vh;
+    min-height: calc(115vh + 16rem);
     background-color: var(--beige);
 
     display: flex;
